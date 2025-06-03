@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wooden Flappy Character</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #8B4513, #D2B48C);
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        canvas {
+            border: 3px solid #654321;
+            border-radius: 10px;
+            background: linear-gradient(to bottom, #87CEEB, #98FB98);
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+        
+        .instructions {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <div>Click or Press SPACE to make the wooden character flap!</div>
+        <div>Score: <span id="score">0</span></div>
+    </div>
+    
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    
+    <div id="gameOver" class="game-over">
+        <h2>Game Over!</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <p>Click or Press SPACE to restart</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game variables
+        let gameRunning = false;
+        let gameStarted = false;
+        let score = 0;
+        
+        // Load character image
+        const characterImg = new Image();
+        characterImg.src = 'character.png'; // Put your character image file here
+        
+        // Load background image
+        const backgroundImg = new Image();
+        backgroundImg.src = 'background.png'; // Put your background image file here
+        
+        // Character (wooden figure)
+        const character = {
+            x: 80,
+            y: canvas.height / 2,
+            width: 60,  // Adjust size as needed
+            height: 80, // Adjust size as needed
+            velocity: 0,
+            gravity: 0.5,
+            jumpPower: -8,
+            rotation: 0  // For tilting the character
+        };
+        
+        // Obstacles (wooden blocks)
+        let obstacles = [];
+        const obstacleWidth = 60;
+        const obstacleGap = 150;
+        let obstacleTimer = 0;
+        
+        // Eye animation
+        let eyeOffset = 0;
+        let eyeDirection = 1;
+        
+        function drawCharacter() {
+            const x = character.x;
+            const y = character.y;
+            
+            // Save the current context
+            ctx.save();
+            
+            // Move to character center for rotation
+            ctx.translate(x + character.width/2, y + character.height/2);
+            
+            // Rotate based on velocity (tilts when falling/jumping)
+            character.rotation = Math.max(-0.5, Math.min(0.5, character.velocity * 0.1));
+            ctx.rotate(character.rotation);
+            
+            // Draw the character image
+            if (characterImg.complete) {
+                ctx.drawImage(
+                    characterImg, 
+                    -character.width/2, 
+                    -character.height/2, 
+                    character.width, 
+                    character.height
+                );
+            } else {
+                // Fallback if image isn't loaded - draw a simple rectangle
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(-character.width/2, -character.height/2, character.width, character.height);
+            }
+            
+            // Restore the context
+            ctx.restore();
+        }
+        
+        function drawObstacle(obs) {
+            // Wooden texture effect
+            const gradient = ctx.createLinearGradient(obs.x, 0, obs.x + obstacleWidth, 0);
+            gradient.addColorStop(0, '#8B4513');
+            gradient.addColorStop(0.5, '#A0522D');
+            gradient.addColorStop(1, '#654321');
+            
+            ctx.fillStyle = gradient;
+            
+            // Top obstacle
+            ctx.fillRect(obs.x, 0, obstacleWidth, obs.topHeight);
+            
+            // Bottom obstacle
+            ctx.fillRect(obs.x, obs.bottomY, obstacleWidth, canvas.height - obs.bottomY);
+            
+            // Wood grain lines
+            ctx.strokeStyle = '#654321';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 5; i++) {
+                const lineY = (obs.topHeight / 5) * i + 10;
+                ctx.beginPath();
+                ctx.moveTo(obs.x + 5, lineY);
+                ctx.lineTo(obs.x + obstacleWidth - 5, lineY);
+                ctx.stroke();
+                
+                const bottomLineY = obs.bottomY + ((canvas.height - obs.bottomY) / 5) * i + 10;
+                ctx.beginPath();
+                ctx.moveTo(obs.x + 5, bottomLineY);
+                ctx.lineTo(obs.x + obstacleWidth - 5, bottomLineY);
+                ctx.stroke();
+            }
+        }
+        
+        function createObstacle() {
+            const minHeight = 80;
+            const maxHeight = canvas.height - obstacleGap - minHeight;
+            const topHeight = Math.random() * (maxHeight - minHeight) + minHeight;
+            
+            obstacles.push({
+                x: canvas.width,
+                topHeight: topHeight,
+                bottomY: topHeight + obstacleGap,
+                passed: false
+            });
+        }
+        
+        function updateGame() {
+            if (!gameRunning) return;
+            
+            // Update Character
+            character.velocity += character.gravity;
+            character.y += character.velocity;
+            
+            // Animate eyes
+            eyeOffset += eyeDirection * 0.2;
+            if (eyeOffset > 2 || eyeOffset < -2) {
+                eyeDirection *= -1;
+            }
+            
+            // Create obstacles
+            obstacleTimer++;
+            if (obstacleTimer > 120) {
+                createObstacle();
+                obstacleTimer = 0;
+            }
+            
+            // Update obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].x -= 3;
+                
+                // Check if passed
+                if (!obstacles[i].passed && obstacles[i].x + obstacleWidth < character.x) {
+                    obstacles[i].passed = true;
+                    score++;
+                    document.getElementById('score').textContent = score;
+                }
+                
+                // Remove off-screen obstacles
+                if (obstacles[i].x + obstacleWidth < 0) {
+                    obstacles.splice(i, 1);
+                }
+            }
+            
+            // Collision detection
+            checkCollisions();
+        }
+        
+        function checkCollisions() {
+            // Ground and ceiling
+            if (character.y + character.height > canvas.height || character.y < 0) {
+                gameOver();
+                return;
+            }
+            
+            // Obstacles
+            for (let obs of obstacles) {
+                if (character.x < obs.x + obstacleWidth &&
+                    character.x + character.width > obs.x) {
+                    if (character.y < obs.topHeight ||
+                        character.y + character.height > obs.bottomY) {
+                        gameOver();
+                        return;
+                    }
+                }
+            }
+        }
+        
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background image or fallback gradient
+            if (backgroundImg.complete) {
+                ctx.drawImage(backgroundImg, 0, 0, canvas.width, canvas.height);
+            } else {
+                // Fallback background
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, '#87CEEB');
+                gradient.addColorStop(1, '#98FB98');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            // Draw obstacles
+            obstacles.forEach(drawObstacle);
+            
+            // Draw character
+            drawCharacter();
+        }
+        
+        function gameLoop() {
+            updateGame();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function jump() {
+            if (!gameStarted) {
+                startGame();
+            } else if (gameRunning) {
+                character.velocity = character.jumpPower;
+            } else {
+                restartGame();
+            }
+        }
+        
+        function startGame() {
+            gameStarted = true;
+            gameRunning = true;
+            document.querySelector('.instructions').style.display = 'block';
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        function restartGame() {
+            gameRunning = true;
+            character.y = canvas.height / 2;
+            character.velocity = 0;
+            obstacles = [];
+            score = 0;
+            obstacleTimer = 0;
+            document.getElementById('score').textContent = score;
+            document.getElementById('gameOver').style.display = 'none';
+        }
+        
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                jump();
+            }
+        });
+        
+        canvas.addEventListener('click', jump);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        });
+        
+        // Start the game loop
+        gameLoop();
+    </script>
+</body>
+</html>
