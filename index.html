@@ -53,7 +53,8 @@
 </head>
 <body>
     <div class="instructions">
-        <div>Click or Press SPACE to make the wooden character flap!</div>
+        <div id="startText">Click or Press SPACE to start flying!</div>
+        <div id="gameText" style="display:none;">Click or Press SPACE to make the wooden character flap!</div>
         <div>Score: <span id="score">0</span></div>
     </div>
     
@@ -73,6 +74,10 @@
         let gameRunning = false;
         let gameStarted = false;
         let score = 0;
+        
+        // Walking animation variables
+        let walkingOffset = 0;
+        let walkingDirection = 1;
         
         // Load character image
         const characterImg = new Image();
@@ -114,23 +119,34 @@
             // Move to character center for rotation
             ctx.translate(x + character.width/2, y + character.height/2);
             
-            // Rotate based on velocity (tilts when falling/jumping)
-            character.rotation = Math.max(-0.5, Math.min(0.5, character.velocity * 0.1));
-            ctx.rotate(character.rotation);
+            if (gameStarted) {
+                // Rotate based on velocity (tilts when falling/jumping) - only during gameplay
+                character.rotation = Math.max(-0.5, Math.min(0.5, character.velocity * 0.1));
+                ctx.rotate(character.rotation);
+            } else {
+                // Walking animation - slight tilt back and forth
+                ctx.rotate(walkingOffset * 0.05);
+            }
+            
+            // Calculate walking bob effect (up and down movement)
+            let bobOffset = 0;
+            if (!gameStarted) {
+                bobOffset = Math.sin(walkingOffset * 2) * 2;
+            }
             
             // Draw the character image
             if (characterImg.complete) {
                 ctx.drawImage(
                     characterImg, 
                     -character.width/2, 
-                    -character.height/2, 
+                    -character.height/2 + bobOffset, 
                     character.width, 
                     character.height
                 );
             } else {
                 // Fallback if image isn't loaded - draw a simple rectangle
                 ctx.fillStyle = '#8B4513';
-                ctx.fillRect(-character.width/2, -character.height/2, character.width, character.height);
+                ctx.fillRect(-character.width/2, -character.height/2 + bobOffset, character.width, character.height);
             }
             
             // Restore the context
@@ -184,6 +200,15 @@
         }
         
         function updateGame() {
+            // Walking animation before game starts
+            if (!gameStarted) {
+                walkingOffset += walkingDirection * 0.5;
+                if (walkingOffset > 3 || walkingOffset < -3) {
+                    walkingDirection *= -1;
+                }
+                return;
+            }
+            
             if (!gameRunning) return;
             
             // Update Character
@@ -286,7 +311,8 @@
         function startGame() {
             gameStarted = true;
             gameRunning = true;
-            document.querySelector('.instructions').style.display = 'block';
+            document.getElementById('startText').style.display = 'none';
+            document.getElementById('gameText').style.display = 'block';
         }
         
         function gameOver() {
