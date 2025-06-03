@@ -79,6 +79,9 @@
         let walkingOffset = 0;
         let walkingDirection = 1;
         
+        // Bat spinning animation
+        let batRotation = 0;
+        
         // Load character image
         const characterImg = new Image();
         characterImg.src = 'character.png'; // Put your character image file here
@@ -94,8 +97,8 @@
             width: 60,  // Adjust size as needed
             height: 80, // Adjust size as needed
             velocity: 0,
-            gravity: 0.5,
-            jumpPower: -8,
+            gravity: 0.3,      // Reduced from 0.5 for less sensitivity
+            jumpPower: -6,     // Reduced from -8 for less sensitivity
             rotation: 0  // For tilting the character
         };
         
@@ -121,7 +124,7 @@
             
             if (gameStarted) {
                 // Rotate based on velocity (tilts when falling/jumping) - only during gameplay
-                character.rotation = Math.max(-0.5, Math.min(0.5, character.velocity * 0.1));
+                character.rotation = Math.max(-0.3, Math.min(0.3, character.velocity * 0.08)); // Reduced tilt sensitivity
                 ctx.rotate(character.rotation);
             } else {
                 // Walking animation - slight tilt back and forth
@@ -149,7 +152,33 @@
                 ctx.fillRect(-character.width/2, -character.height/2 + bobOffset, character.width, character.height);
             }
             
+            // Draw spinning bat during flight (only when game is running)
+            if (gameRunning && gameStarted) {
+                drawSpinningBat();
+            }
+            
             // Restore the context
+            ctx.restore();
+        }
+        
+        function drawSpinningBat() {
+            // Save context for bat drawing
+            ctx.save();
+            
+            // Position bat near character's hand (adjust these values as needed)
+            ctx.translate(15, -10); // Offset from character center
+            
+            // Rotate the bat
+            ctx.rotate(batRotation);
+            
+            // Draw bat (simple brown rectangle)
+            ctx.fillStyle = '#654321';
+            ctx.fillRect(-2, -12, 4, 24); // Thin vertical bat
+            
+            // Add bat handle (slightly thicker bottom)
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(-3, 8, 6, 8);
+            
             ctx.restore();
         }
         
@@ -214,6 +243,11 @@
             // Update Character
             character.velocity += character.gravity;
             character.y += character.velocity;
+            
+            // Animate bat spinning during flight
+            if (gameRunning) {
+                batRotation += 0.15; // Spin speed
+            }
             
             // Animate eyes
             eyeOffset += eyeDirection * 0.2;
